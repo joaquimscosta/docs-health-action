@@ -296,7 +296,7 @@ def _normalize_frontmatter_findings(
             "id": f"{prefix}{counter[0]:03d}",
             "check": check_name,
             "severity": "info",
-            "file": candidate.get("file", candidate.get("doc", "")),
+            "file": candidate.get("path", candidate.get("file", candidate.get("doc", ""))),
             "line": 0,
             "message": candidate.get("reason", "Missing frontmatter — consider adding metadata"),
             "details": {k: v for k, v in candidate.items()},
