@@ -1,0 +1,11 @@
+{
+  "name": "simple-project",
+  "version": "1.0.0",
+  "description": "A simple test project",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node index.js"
+  }
+}

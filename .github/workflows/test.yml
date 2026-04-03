@@ -1,0 +1,66 @@
+name: Test
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify scripts parse
+        run: |
+          cd scripts
+          python3 -c "import orchestrate; print('orchestrate OK')"
+          python3 -c "import format_comment; print('format_comment OK')"
+          python3 -c "import cross_doc_checker; print('cross_doc_checker OK')"
+          python3 -c "import claude_md_checker; print('claude_md_checker OK')"
+          python3 -c "import frontmatter_onboard; print('frontmatter_onboard OK')"
+      - name: Test simple project (no issues)
+        run: |
+          python3 scripts/orchestrate.py \
+            --checks links,versions \
+            --output /tmp/simple.json \
+            tests/fixtures/simple-project
+          python3 -c "
+          import json
+          d = json.load(open('/tmp/simple.json'))
+          assert d['summary']['errors'] == 0, f'Expected 0 errors, got {d[\"summary\"][\"errors\"]}'
+          print(f'Simple: {d[\"summary\"][\"total_issues\"]} issues (expected minimal)')
+          "
+      - name: Test broken links project
+        run: |
+          python3 scripts/orchestrate.py \
+            --checks links \
+            --output /tmp/broken.json \
+            tests/fixtures/broken-links
+          python3 -c "
+          import json
+          d = json.load(open('/tmp/broken.json'))
+          assert d['summary']['errors'] > 0, f'Expected errors, got {d[\"summary\"][\"errors\"]}'
+          print(f'Broken links: {d[\"summary\"][\"errors\"]} errors found')
+          "
+      - name: Test version drift project
+        run: |
+          python3 scripts/orchestrate.py \
+            --checks versions \
+            --output /tmp/versions.json \
+            tests/fixtures/version-drift
+          python3 -c "
+          import json
+          d = json.load(open('/tmp/versions.json'))
+          total = d['summary']['total_issues']
+          assert total > 0, f'Expected version issues, got {total}'
+          print(f'Version drift: {total} issues found')
+          "
+      - name: Test format_comment output
+        run: |
+          python3 scripts/orchestrate.py \
+            --checks links \
+            --output /tmp/for-comment.json \
+            tests/fixtures/broken-links
+          python3 scripts/format_comment.py /tmp/for-comment.json | head -20

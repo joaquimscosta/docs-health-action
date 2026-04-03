@@ -1,0 +1,19 @@
+name: Integration Test
+on:
+  push:
+    branches: [main]
+
+jobs:
+  self-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./
+        with:
+          checks: 'links,versions,staleness'
+          fail-on: 'none'
+          comment-on-pr: 'false'

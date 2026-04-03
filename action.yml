@@ -1,0 +1,203 @@
+name: 'Documentation Health Check'
+description: 'Detect stale docs, broken links, version drift, and cross-document inconsistencies in any markdown project'
+author: 'joaquimscosta'
+
+branding:
+  icon: 'book-open'
+  color: 'blue'
+
+inputs:
+  checks:
+    description: >
+      Comma-separated list of checks to run.
+      Available: links, versions, staleness, claude-md, cross-doc, frontmatter, all.
+    required: false
+    default: 'links,versions,staleness'
+
+  doc-patterns:
+    description: >
+      Comma-separated glob patterns for discovering docs.
+      Default: README.md,CLAUDE.md,CONTRIBUTING.md,docs/**/*.md
+    required: false
+    default: ''
+
+  exclude-patterns:
+    description: >
+      Comma-separated glob patterns to exclude from scanning.
+      Default: node_modules/**,.git/**,vendor/**
+    required: false
+    default: ''
+
+  config-file:
+    description: >
+      Path to config file (e.g., .arkhe.yaml) with doc-freshness section.
+      If present, doc-patterns and exclude-patterns are read from it.
+    required: false
+    default: ''
+
+  fail-on:
+    description: >
+      When to fail the action.
+      errors: fail on broken links, critical mismatches.
+      warnings: also fail on staleness, minor mismatches.
+      none: never fail (advisory only).
+    required: false
+    default: 'errors'
+
+  comment-on-pr:
+    description: >
+      Whether to post a summary comment on the PR.
+      Only applies when triggered by pull_request event.
+    required: false
+    default: 'true'
+
+  comment-threshold:
+    description: >
+      Minimum severity to include in PR comment.
+      Options: error, warning, info.
+    required: false
+    default: 'warning'
+
+  artifact-name:
+    description: 'Name for the JSON results artifact'
+    required: false
+    default: 'docs-health-results'
+
+outputs:
+  result-json:
+    description: 'Path to the JSON results file'
+    value: ${{ steps.run-checks.outputs.result-json }}
+
+  total-issues:
+    description: 'Total number of issues found'
+    value: ${{ steps.run-checks.outputs.total-issues }}
+
+  errors:
+    description: 'Number of error-level issues'
+    value: ${{ steps.run-checks.outputs.errors }}
+
+  warnings:
+    description: 'Number of warning-level issues'
+    value: ${{ steps.run-checks.outputs.warnings }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Run documentation health checks
+      id: run-checks
+      shell: bash
+      env:
+        INPUT_CHECKS: ${{ inputs.checks }}
+        INPUT_DOC_PATTERNS: ${{ inputs.doc-patterns }}
+        INPUT_EXCLUDE_PATTERNS: ${{ inputs.exclude-patterns }}
+        INPUT_CONFIG_FILE: ${{ inputs.config-file }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+      run: |
+        RESULT_FILE="${RUNNER_TEMP}/docs-health-results.json"
+
+        ARGS="--checks ${INPUT_CHECKS} --output ${RESULT_FILE}"
+
+        if [ -n "$INPUT_DOC_PATTERNS" ]; then
+          ARGS="$ARGS --doc-patterns ${INPUT_DOC_PATTERNS}"
+        fi
+
+        if [ -n "$INPUT_EXCLUDE_PATTERNS" ]; then
+          ARGS="$ARGS --exclude-patterns ${INPUT_EXCLUDE_PATTERNS}"
+        fi
+
+        if [ -n "$INPUT_CONFIG_FILE" ]; then
+          ARGS="$ARGS --config-file ${INPUT_CONFIG_FILE}"
+        fi
+
+        python3 "${{ github.action_path }}/scripts/orchestrate.py" \
+          $ARGS \
+          "$GITHUB_WORKSPACE"
+
+        echo "result-json=${RESULT_FILE}" >> "$GITHUB_OUTPUT"
+
+        # Extract counts from JSON
+        TOTAL=$(python3 -c "import json; d=json.load(open('${RESULT_FILE}')); print(d['summary']['total_issues'])")
+        ERRORS=$(python3 -c "import json; d=json.load(open('${RESULT_FILE}')); print(d['summary']['errors'])")
+        WARNINGS=$(python3 -c "import json; d=json.load(open('${RESULT_FILE}')); print(d['summary']['warnings'])")
+
+        echo "total-issues=${TOTAL}" >> "$GITHUB_OUTPUT"
+        echo "errors=${ERRORS}" >> "$GITHUB_OUTPUT"
+        echo "warnings=${WARNINGS}" >> "$GITHUB_OUTPUT"
+
+        # Determine if we should fail
+        if [ "$INPUT_FAIL_ON" = "errors" ] && [ "$ERRORS" -gt 0 ]; then
+          echo "::error::Found ${ERRORS} error-level documentation issues"
+          echo "should-fail=true" >> "$GITHUB_OUTPUT"
+        elif [ "$INPUT_FAIL_ON" = "warnings" ] && [ "$((ERRORS + WARNINGS))" -gt 0 ]; then
+          echo "::error::Found $((ERRORS + WARNINGS)) documentation issues (errors + warnings)"
+          echo "should-fail=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "should-fail=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Upload results artifact
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ steps.run-checks.outputs.result-json }}
+        retention-days: 30
+
+    - name: Post PR comment
+      if: >
+        inputs.comment-on-pr == 'true' &&
+        github.event_name == 'pull_request' &&
+        steps.run-checks.outputs.total-issues != '0'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const { execFileSync } = require('child_process');
+
+          const resultPath = '${{ steps.run-checks.outputs.result-json }}';
+          const threshold = '${{ inputs.comment-threshold }}';
+          const actionPath = '${{ github.action_path }}';
+
+          // Generate comment body using Python formatter (execFileSync is safe - no shell injection)
+          const commentBody = execFileSync(
+            'python3',
+            [actionPath + '/scripts/format_comment.py', '--threshold', threshold, resultPath],
+            { encoding: 'utf8' }
+          );
+
+          // Find existing comment to update (avoid duplicates on re-push)
+          const marker = '<!-- docs-health-action -->';
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+
+          const existing = comments.find(c => c.body.includes(marker));
+          const body = marker + '\n' + commentBody;
+
+          if (existing) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existing.id,
+              body: body,
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body,
+            });
+          }
+
+    - name: Fail if threshold exceeded
+      if: steps.run-checks.outputs.should-fail == 'true'
+      shell: bash
+      run: exit 1
