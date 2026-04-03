@@ -16,7 +16,13 @@
 - **Cross-doc inconsistencies** -- different documents citing conflicting version numbers for the same tool or language
 - **Missing frontmatter** -- markdown files that would benefit from tracking metadata (`title`, `last_updated`)
 
-Results are posted as a PR comment, uploaded as a JSON artifact, and exposed as action outputs for downstream steps.
+Results are posted as a PR comment, uploaded as a JSON artifact, and exposed as action outputs for downstream steps. Works on any repository with markdown files -- no special project structure or dependencies required.
+
+## Why Automated Doc Health?
+
+Documentation drifts silently. Links break after refactors, version numbers go stale after upgrades, files get abandoned as the codebase evolves. By the time someone notices, readers have already hit dead ends.
+
+Manual audits do not scale. This action catches those issues automatically on every pull request -- before they reach your users.
 
 ## Quick Start
 
@@ -41,7 +47,9 @@ jobs:
 
 That is all you need. The action will run the default checks (links, versions, staleness), post a comment on the PR if issues are found, and fail the workflow if any errors are detected.
 
-## Inputs
+## Configuration
+
+### Action Inputs
 
 | Input | Description | Default |
 |-------|-------------|---------|
@@ -54,6 +62,44 @@ That is all you need. The action will run the default checks (links, versions, s
 | `config-file` | Path to a config file (e.g., `.arkhe.yaml`) with a `doc-freshness` section. Overrides `doc-patterns` and `exclude-patterns` when present. | _(none)_ |
 | `artifact-name` | Name for the uploaded JSON results artifact. | `docs-health-results` |
 
+### Config File (`.arkhe.yaml`)
+
+You can centralize configuration in a `.arkhe.yaml` file at your project root:
+
+```yaml
+doc-freshness:
+  doc-patterns:
+    - "README.md"
+    - "CLAUDE.md"
+    - "docs/**/*.md"
+    - "wiki/**/*.md"
+  exclude-patterns:
+    - "node_modules/**"
+    - "vendor/**"
+    - ".git/**"
+```
+
+Then reference it in your workflow:
+
+```yaml
+- uses: joaquimscosta/docs-health-action@v1
+  with:
+    config-file: .arkhe.yaml
+```
+
+When a config file is specified and found, its `doc-patterns` and `exclude-patterns` values override the input defaults.
+
+### Using Workflow Inputs
+
+For simpler cases, pass patterns directly:
+
+```yaml
+- uses: joaquimscosta/docs-health-action@v1
+  with:
+    doc-patterns: 'README.md,docs/**/*.md,wiki/**/*.md'
+    exclude-patterns: 'docs/archive/**'
+```
+
 ## Outputs
 
 | Output | Description |
@@ -62,6 +108,52 @@ That is all you need. The action will run the default checks (links, versions, s
 | `total-issues` | Total number of issues found (errors + warnings + info). |
 | `errors` | Number of error-level issues. |
 | `warnings` | Number of warning-level issues. |
+
+## Checks Reference
+
+### `links` -- Broken Link Detection
+
+Parses every discovered markdown file for internal links (`[text](target)`), anchor references (`[text](#heading)`), image sources (`<img src="...">`), and backtick-quoted file paths (`` `src/foo.ts` ``). Verifies that each target exists on disk. Anchor references are validated against the heading slugs in the target file.
+
+- **Error**: Target file does not exist, or anchor not found in target file.
+- **Warning**: Backtick-quoted file path does not exist (may be illustrative).
+
+### `versions` -- Version Drift Detection
+
+Extracts version references from prose (e.g., "Node.js 18", "Python 3.11", "Java 21") and compares them against ground truth files in the repository: `package.json`, `.nvmrc`, `.python-version`, `pyproject.toml`, `go.mod`, `.tool-versions`, `build.gradle.kts`, `pom.xml`, and others.
+
+- **Error**: Major version mismatch (e.g., doc says Node 18, project uses Node 20).
+- **Warning**: Minor or patch version mismatch.
+
+Also checks `last_updated` frontmatter dates against git history and flags docs where the dates diverge by more than 7 days.
+
+### `staleness` -- Document Freshness Analysis
+
+Uses git history to compute a drift score for each document. Documents that have not been updated for a long time relative to the rest of the project are flagged.
+
+- **Warning**: Document is `stale` or `very_stale`.
+- **Info**: Document is `aging`.
+
+### `claude-md` -- CLAUDE.md Drift
+
+Parses structural claims in `CLAUDE.md` -- plugin counts, component inventories (agents, commands, skills), version strings, and file path references -- and compares them against the filesystem.
+
+If the project has a `plugins/` directory, plugin-specific checks run automatically. File path checks always run regardless of project structure.
+
+- **Error**: Component documented in CLAUDE.md but not found on disk (phantom), or component on disk but not documented (undocumented).
+- **Warning**: Plugin count mismatch, version mismatch, or referenced file path missing.
+
+### `cross-doc` -- Cross-Document Consistency
+
+Compares documents that cover overlapping topics (detected via heading analysis) and flags cases where they cite conflicting version numbers for the same tool or language.
+
+- **Warning**: Two documents disagree on a version number (e.g., README says Python 3.11, CONTRIBUTING says Python 3.9).
+
+### `frontmatter` -- Missing Frontmatter
+
+Scans markdown files for YAML frontmatter. Files without frontmatter are flagged as candidates for onboarding with suggested `title` and `last_updated` fields derived from git history.
+
+- **Info**: File has no frontmatter and would benefit from metadata.
 
 ## Examples
 
@@ -152,52 +244,6 @@ jobs:
           echo "Errors: ${{ steps.docs-health.outputs.errors }}"
 ```
 
-## Checks Reference
-
-### `links` -- Broken Link Detection
-
-Parses every discovered markdown file for internal links (`[text](target)`), anchor references (`[text](#heading)`), image sources (`<img src="...">`), and backtick-quoted file paths (`` `src/foo.ts` ``). Verifies that each target exists on disk. Anchor references are validated against the heading slugs in the target file.
-
-- **Error**: Target file does not exist, or anchor not found in target file.
-- **Warning**: Backtick-quoted file path does not exist (may be illustrative).
-
-### `versions` -- Version Drift Detection
-
-Extracts version references from prose (e.g., "Node.js 18", "Python 3.11", "Java 21") and compares them against ground truth files in the repository: `package.json`, `.nvmrc`, `.python-version`, `pyproject.toml`, `go.mod`, `.tool-versions`, `build.gradle.kts`, `pom.xml`, and others.
-
-- **Error**: Major version mismatch (e.g., doc says Node 18, project uses Node 20).
-- **Warning**: Minor or patch version mismatch.
-
-Also checks `last_updated` frontmatter dates against git history and flags docs where the dates diverge by more than 7 days.
-
-### `staleness` -- Document Freshness Analysis
-
-Uses git history to compute a drift score for each document. Documents that have not been updated for a long time relative to the rest of the project are flagged.
-
-- **Warning**: Document is `stale` or `very_stale`.
-- **Info**: Document is `aging`.
-
-### `claude-md` -- CLAUDE.md Drift
-
-Parses structural claims in `CLAUDE.md` -- plugin counts, component inventories (agents, commands, skills), version strings, and file path references -- and compares them against the filesystem.
-
-If the project has a `plugins/` directory, plugin-specific checks run automatically. File path checks always run regardless of project structure.
-
-- **Error**: Component documented in CLAUDE.md but not found on disk (phantom), or component on disk but not documented (undocumented).
-- **Warning**: Plugin count mismatch, version mismatch, or referenced file path missing.
-
-### `cross-doc` -- Cross-Document Consistency
-
-Compares documents that cover overlapping topics (detected via heading analysis) and flags cases where they cite conflicting version numbers for the same tool or language.
-
-- **Warning**: Two documents disagree on a version number (e.g., README says Python 3.11, CONTRIBUTING says Python 3.9).
-
-### `frontmatter` -- Missing Frontmatter
-
-Scans markdown files for YAML frontmatter. Files without frontmatter are flagged as candidates for onboarding with suggested `title` and `last_updated` fields derived from git history.
-
-- **Info**: File has no frontmatter and would benefit from metadata.
-
 ## PR Comment
 
 When issues are found on a `pull_request` event, the action posts (or updates) a comment on the PR. The comment includes a summary and tables grouped by severity.
@@ -227,45 +273,20 @@ Generated by docs-health-action | Checks: broken-link, version-drift, stale-date
 
 The comment is idempotent -- on re-push, the existing comment is updated rather than creating a new one.
 
-## Configuration
+## Pairing with Claude Code
 
-### Using `.arkhe.yaml`
+This action is part of a broader documentation health toolkit. The same detection algorithms also power the **doc-freshness** skill in the [Arkhe Claude Plugins](https://github.com/joaquimscosta/arkhe-claude-plugins) collection for [Claude Code](https://docs.claude.com/en/docs/overview).
 
-You can centralize configuration in a `.arkhe.yaml` file at your project root:
+| | GitHub Action (this repo) | Claude Code Skill |
+|---|---|---|
+| **When** | CI/CD -- every PR, scheduled runs | Interactive -- during development sessions |
+| **Checks** | links, versions, staleness, claude-md, cross-doc, frontmatter | Same checks + AI-assisted code-doc drift analysis |
+| **Output** | JSON artifact, PR comment, workflow pass/fail | Conversational findings, actionable suggestions |
+| **Best for** | Enforcement, regression prevention | Exploration, triage, on-demand audits |
 
-```yaml
-doc-freshness:
-  doc-patterns:
-    - "README.md"
-    - "CLAUDE.md"
-    - "docs/**/*.md"
-    - "wiki/**/*.md"
-  exclude-patterns:
-    - "node_modules/**"
-    - "vendor/**"
-    - ".git/**"
-```
+Use the action to enforce baseline doc health in CI. Use the skill during development to investigate drift before committing, triage findings interactively, and get AI-assisted suggestions for what needs updating. Together they form a **detect-in-dev, enforce-in-CI** loop.
 
-Then reference it in your workflow:
-
-```yaml
-- uses: joaquimscosta/docs-health-action@v1
-  with:
-    config-file: .arkhe.yaml
-```
-
-When a config file is specified and found, its `doc-patterns` and `exclude-patterns` values override the input defaults.
-
-### Using workflow inputs
-
-For simpler cases, pass patterns directly:
-
-```yaml
-- uses: joaquimscosta/docs-health-action@v1
-  with:
-    doc-patterns: 'README.md,docs/**/*.md,wiki/**/*.md'
-    exclude-patterns: 'docs/archive/**'
-```
+The action is fully standalone -- it does not require Claude Code or the plugin system. Learn more about the doc-freshness skill in the [Arkhe Claude Plugins repository](https://github.com/joaquimscosta/arkhe-claude-plugins).
 
 ## Requirements
 
