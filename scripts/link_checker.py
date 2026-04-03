@@ -23,13 +23,16 @@ from shared import (
 )
 
 
-def check_links(doc_path: Path, project_root: Path) -> List[Dict[str, object]]:
+def check_links(
+    doc_path: Path, project_root: Path, content: Optional[str] = None
+) -> List[Dict[str, object]]:
     """Check all internal links in a markdown file.
 
     Returns list of findings with keys:
         doc, line, target, status ('ok'|'broken'|'warning'), reason, type.
     """
-    content = read_file_safe(doc_path)
+    if content is None:
+        content = read_file_safe(doc_path)
     if content is None:
         return [{
             "doc": str(doc_path.relative_to(project_root)),
@@ -45,6 +48,7 @@ def check_links(doc_path: Path, project_root: Path) -> List[Dict[str, object]]:
 
     # Check markdown links
     links = parse_markdown_links(content)
+    self_heading_slugs = {str(h["slug"]) for h in extract_headings(content)}
     for link in links:
         target = str(link["target"])
         line = link["line"]
@@ -56,9 +60,7 @@ def check_links(doc_path: Path, project_root: Path) -> List[Dict[str, object]]:
         # Skip pure anchor links within same file
         if target.startswith("#"):
             slug = target[1:]
-            headings = extract_headings(content)
-            heading_slugs = {str(h["slug"]) for h in headings}
-            if slug not in heading_slugs:
+            if slug not in self_heading_slugs:
                 findings.append({
                     "doc": rel_doc,
                     "line": line,
@@ -144,13 +146,12 @@ def check_all_links(
     warnings = 0
 
     for doc_path in doc_paths:
-        # Count total links in this doc for accurate summary
         content = read_file_safe(doc_path)
         if content:
             total_links += len(parse_markdown_links(content))
             total_links += len(extract_backtick_paths(content))
 
-        findings = check_links(doc_path, project_root)
+        findings = check_links(doc_path, project_root, content)
         for f in findings:
             if f["status"] == "broken":
                 broken += 1

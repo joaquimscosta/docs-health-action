@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from shared import extract_headings, read_file_safe
+from shared import _is_fence_line, extract_headings, read_file_safe
 
 
 # ---------------------------------------------------------------------------
@@ -114,7 +114,7 @@ def extract_version_claims(content: str) -> List[Dict[str, Any]]:
 
     for line_num, line in enumerate(lines, start=1):
         stripped = line.strip()
-        if stripped.startswith("```") or stripped.startswith("~~~"):
+        if _is_fence_line(stripped):
             in_code_block = not in_code_block
             continue
         if in_code_block:

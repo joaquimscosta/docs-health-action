@@ -22,7 +22,7 @@ _SCRIPT_DIR = str(Path(__file__).resolve().parent)
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
-from shared import DEFAULT_DOC_PATTERNS, DEFAULT_EXCLUDE_PATTERNS, discover_markdown_files
+from shared import DEFAULT_DOC_PATTERNS, DEFAULT_EXCLUDE_PATTERNS, discover_markdown_files, read_yaml_section
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -46,34 +46,9 @@ OUTPUT_VERSION = "1.0.0"
 # ---------------------------------------------------------------------------
 
 
-def _import_link_checker():
-    import link_checker
-    return link_checker
-
-
-def _import_version_checker():
-    import version_checker
-    return version_checker
-
-
-def _import_scan_freshness():
-    import scan_freshness
-    return scan_freshness
-
-
-def _import_claude_md_checker():
-    import claude_md_checker
-    return claude_md_checker
-
-
-def _import_cross_doc_checker():
-    import cross_doc_checker
-    return cross_doc_checker
-
-
-def _import_frontmatter_onboard():
-    import frontmatter_onboard
-    return frontmatter_onboard
+def _lazy_import(name: str):
+    """Lazily import a sibling module by name."""
+    return __import__(name)
 
 
 # ---------------------------------------------------------------------------
@@ -313,16 +288,14 @@ def _normalize_frontmatter_findings(
 def _run_links(
     doc_paths: List[Path], project_root: Path, counter: List[int]
 ) -> List[Dict[str, Any]]:
-    mod = _import_link_checker()
-    raw = mod.check_all_links(doc_paths, project_root)
+    raw = _lazy_import("link_checker").check_all_links(doc_paths, project_root)
     return _normalize_link_findings(raw, "links", counter)
 
 
 def _run_versions(
     doc_paths: List[Path], project_root: Path, counter: List[int]
 ) -> List[Dict[str, Any]]:
-    mod = _import_version_checker()
-    raw = mod.check_all_versions(doc_paths, project_root)
+    raw = _lazy_import("version_checker").check_all_versions(doc_paths, project_root)
     return _normalize_version_findings(raw, "versions", counter)
 
 
@@ -330,32 +303,28 @@ def _run_staleness(
     doc_paths: List[Path], project_root: Path, counter: List[int],
     config: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
-    mod = _import_scan_freshness()
-    raw_list = mod.compute_staleness(doc_paths, project_root)
+    raw_list = _lazy_import("scan_freshness").compute_staleness(doc_paths, project_root)
     return _normalize_staleness_findings(raw_list, "staleness", counter)
 
 
 def _run_claude_md(
     doc_paths: List[Path], project_root: Path, counter: List[int]
 ) -> List[Dict[str, Any]]:
-    mod = _import_claude_md_checker()
-    raw = mod.check_claude_md(project_root)
+    raw = _lazy_import("claude_md_checker").check_claude_md(project_root)
     return _normalize_claude_md_findings(raw, "claude-md", counter)
 
 
 def _run_cross_doc(
     doc_paths: List[Path], project_root: Path, counter: List[int]
 ) -> List[Dict[str, Any]]:
-    mod = _import_cross_doc_checker()
-    raw = mod.check_cross_doc(doc_paths, project_root)
+    raw = _lazy_import("cross_doc_checker").check_cross_doc(doc_paths, project_root)
     return _normalize_cross_doc_findings(raw, "cross-doc", counter)
 
 
 def _run_frontmatter(
     doc_paths: List[Path], project_root: Path, counter: List[int]
 ) -> List[Dict[str, Any]]:
-    mod = _import_frontmatter_onboard()
-    raw = mod.suggest_onboarding(project_root)
+    raw = _lazy_import("frontmatter_onboard").suggest_onboarding(project_root)
     return _normalize_frontmatter_findings(raw, "frontmatter", counter)
 
 
@@ -431,12 +400,8 @@ def _load_config(config_file: Optional[str], project_root: Path) -> Optional[Dic
     if not config_path.exists():
         return None
 
-    try:
-        mod = _import_scan_freshness()
-        return mod.load_config(project_root, str(config_path))
-    except (ImportError, AttributeError):
-        # scan_freshness module not available or no load_config function
-        return None
+    section = read_yaml_section(config_path, "doc-freshness")
+    return section or None
 
 
 # ---------------------------------------------------------------------------
