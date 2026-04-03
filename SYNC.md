@@ -44,11 +44,11 @@ These files were written specifically for the GitHub Action.
 | `scripts/cross_doc_checker.py` | Heuristic cross-document consistency checker. Detects version conflicts between documents that cover overlapping topics. Entirely new -- the plugin does not have this check. |
 | `action.yml` | GitHub Action composite definition (inputs, outputs, steps). |
 
-### Not copied
+### Verbatim copies (additional)
 
-| Source file | Reason |
-|-------------|--------|
-| `plugins/doc/skills/doc-freshness/scripts/scan_freshness.py` | Replaced by `orchestrate.py`, which has a different architecture (modular check dispatch, unified JSON schema, severity normalization). The staleness check in `orchestrate.py` imports `scan_freshness` lazily if present, but the action does not currently ship this module -- the `staleness` check is a no-op until a staleness module is added. |
+| Action file | Source file | Notes |
+|-------------|------------|-------|
+| `scripts/scan_freshness.py` | `plugins/doc/skills/doc-freshness/scripts/scan_freshness.py` | Used as a library by `orchestrate.py` for `compute_staleness()` and `load_config()`. Not called directly as the main orchestrator. |
 
 ## How to Sync
 
@@ -63,6 +63,7 @@ Syncing is manual. There is no automated script.
    cp $SRC/shared.py $DST/
    cp $SRC/link_checker.py $DST/
    cp $SRC/version_checker.py $DST/
+   cp $SRC/scan_freshness.py $DST/
    ```
 
 2. **Generalized files**: Diff the plugin source against the action version. Apply new logic (bug fixes, new checks) while preserving the generalizations listed above.
