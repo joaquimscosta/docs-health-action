@@ -1,0 +1,42 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [1.0.1] - 2026-04-03
+
+### Fixed
+- Add `scan_freshness.py` for staleness check support — without it the staleness check silently skipped (c1aa8ae)
+- Frontmatter findings now use the correct `path` key from `frontmatter_onboard` output (9207f4d)
+- Pass `project_root` to `load_config` to fix TypeError on path concatenation (00e54a9)
+
+### Changed
+- Replace 6 lazy-import wrappers in `orchestrate.py` with single `_lazy_import()` helper
+- Simplify `_load_config` to use `shared.read_yaml_section` directly, removing circular dependency on `scan_freshness`
+- Use `shared.git_last_modified` in `frontmatter_onboard` and `version_checker` instead of inline subprocess calls
+- Use `shared._is_fence_line` for consistent fence detection in `version_checker` and `cross_doc_checker`
+- Eliminate double file reads in `check_all_links` and `check_all_versions`
+- Compute same-file heading slugs once in `check_links` instead of per anchor link
+
+## [1.0.0] - 2026-04-03
+
+### Added
+- Initial docs-health-action implementation with 6 checks: links, versions, staleness, claude-md, cross-doc, frontmatter
+- Unified CI entry point (`orchestrate.py`) with normalized JSON output
+- Broken link and file reference detection (`link_checker.py`)
+- Version staleness detection against ground truth sources (`version_checker.py`)
+- Git-based documentation staleness analysis (`scan_freshness.py`)
+- CLAUDE.md structural drift checker (`claude_md_checker.py`)
+- Cross-document consistency checker for version conflicts (`cross_doc_checker.py`)
+- Frontmatter onboarding tool (`frontmatter_onboard.py`)
+- Shared utilities for markdown parsing, git operations, and file handling (`shared.py`)
+- GitHub Action composite definition (`action.yml`)
+- Sync documentation (`SYNC.md`) mapping action scripts to plugin source
+
+[Unreleased]: https://github.com/joaquimscosta/docs-health-action/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/joaquimscosta/docs-health-action/compare/v1.0.0...v1.0.1
+[1.0.0]: https://github.com/joaquimscosta/docs-health-action/releases/tag/v1.0.0
