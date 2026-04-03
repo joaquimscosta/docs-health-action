@@ -433,7 +433,7 @@ def _load_config(config_file: Optional[str], project_root: Path) -> Optional[Dic
 
     try:
         mod = _import_scan_freshness()
-        return mod.load_config(str(config_path))
+        return mod.load_config(project_root, str(config_path))
     except (ImportError, AttributeError):
         # scan_freshness module not available or no load_config function
         return None
