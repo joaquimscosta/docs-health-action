@@ -84,6 +84,14 @@ jobs:
           git push origin "$TAG"
           echo "Created and pushed tag $TAG"
 
+      - name: Update major version tag
+        run: |
+          TAG="${{ steps.validate.outputs.tag }}"
+          MAJOR="v$(echo "$TAG" | sed 's/^v//' | cut -d. -f1)"
+          git tag -fa "$MAJOR" "$TAG"^{} -m "Release $MAJOR (points to $TAG)"
+          git push origin "$MAJOR" --force
+          echo "Updated floating tag $MAJOR -> $TAG"
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
