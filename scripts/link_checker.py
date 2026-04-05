@@ -24,7 +24,8 @@ from shared import (
 
 
 def check_links(
-    doc_path: Path, project_root: Path, content: Optional[str] = None
+    doc_path: Path, project_root: Path, content: Optional[str] = None,
+    check_backtick_paths: bool = False,
 ) -> List[Dict[str, object]]:
     """Check all internal links in a markdown file.
 
@@ -54,7 +55,7 @@ def check_links(
         line = link["line"]
 
         # Skip external URLs
-        if target.startswith(("http://", "https://", "mailto:", "ftp://")):
+        if target.startswith(("http://", "https://", "mailto:", "ftp://", "data:")):
             continue
 
         # Skip pure anchor links within same file
@@ -107,7 +108,9 @@ def check_links(
                         "type": "anchor",
                     })
 
-    # Check backtick-quoted file paths
+    # Check backtick-quoted file paths (opt-in, off by default)
+    if not check_backtick_paths:
+        return findings
     backtick_paths = extract_backtick_paths(content)
     for ref in backtick_paths:
         ref_path = str(ref["path"])
@@ -132,7 +135,8 @@ def check_links(
 
 
 def check_all_links(
-    doc_paths: List[Path], project_root: Path
+    doc_paths: List[Path], project_root: Path,
+    check_backtick_paths: bool = False,
 ) -> Dict[str, object]:
     """Check links across all discovered documentation files.
 
@@ -149,9 +153,10 @@ def check_all_links(
         content = read_file_safe(doc_path)
         if content:
             total_links += len(parse_markdown_links(content))
-            total_links += len(extract_backtick_paths(content))
+            if check_backtick_paths:
+                total_links += len(extract_backtick_paths(content))
 
-        findings = check_links(doc_path, project_root, content)
+        findings = check_links(doc_path, project_root, content, check_backtick_paths)
         for f in findings:
             if f["status"] == "broken":
                 broken += 1

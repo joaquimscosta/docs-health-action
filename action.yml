@@ -58,6 +58,14 @@ inputs:
     required: false
     default: 'warning'
 
+  check-backtick-paths:
+    description: >
+      Also check backtick-quoted file paths (e.g., `src/foo.ts`) for existence.
+      These are single-backtick code mentions in prose, not markdown links.
+      Off by default to avoid false positives from illustrative path references.
+    required: false
+    default: 'false'
+
   artifact-name:
     description: 'Name for the JSON results artifact'
     required: false
@@ -97,6 +105,7 @@ runs:
         INPUT_EXCLUDE_PATTERNS: ${{ inputs.exclude-patterns }}
         INPUT_CONFIG_FILE: ${{ inputs.config-file }}
         INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        INPUT_CHECK_BACKTICK_PATHS: ${{ inputs.check-backtick-paths }}
       run: |
         RESULT_FILE="${RUNNER_TEMP}/docs-health-results.json"
 
@@ -112,6 +121,10 @@ runs:
 
         if [ -n "$INPUT_CONFIG_FILE" ]; then
           ARGS="$ARGS --config-file ${INPUT_CONFIG_FILE}"
+        fi
+
+        if [ "$INPUT_CHECK_BACKTICK_PATHS" = "true" ]; then
+          ARGS="$ARGS --check-backtick-paths"
         fi
 
         python3 "${{ github.action_path }}/scripts/orchestrate.py" \

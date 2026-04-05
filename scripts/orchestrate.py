@@ -286,9 +286,11 @@ def _normalize_frontmatter_findings(
 
 
 def _run_links(
-    doc_paths: List[Path], project_root: Path, counter: List[int]
+    doc_paths: List[Path], project_root: Path, counter: List[int],
+    check_backtick_paths: bool = False,
 ) -> List[Dict[str, Any]]:
-    raw = _lazy_import("link_checker").check_all_links(doc_paths, project_root)
+    raw = _lazy_import("link_checker").check_all_links(
+        doc_paths, project_root, check_backtick_paths=check_backtick_paths)
     return _normalize_link_findings(raw, "links", counter)
 
 
@@ -449,6 +451,12 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         default="docs-health-report.json",
         help="Output JSON file path (default: docs-health-report.json)",
     )
+    parser.add_argument(
+        "--check-backtick-paths",
+        action="store_true",
+        default=False,
+        help="Also check backtick-quoted file paths for existence (off by default)",
+    )
     return parser.parse_args(argv)
 
 
@@ -510,7 +518,11 @@ def main(argv: Optional[List[str]] = None) -> None:
         counter: List[int] = [0]
 
         try:
-            if check_name == "staleness":
+            if check_name == "links":
+                findings = runner(
+                    doc_paths, project_root, counter,
+                    check_backtick_paths=args.check_backtick_paths)
+            elif check_name == "staleness":
                 findings = runner(doc_paths, project_root, counter, config=config)
             else:
                 findings = runner(doc_paths, project_root, counter)
