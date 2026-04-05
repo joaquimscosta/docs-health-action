@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-04-05
+
+### Fixed
+- `data:` URIs no longer flagged as broken links ([#1](https://github.com/joaquimscosta/docs-health-action/issues/1))
+- Backtick-quoted code paths (e.g., `` `src/lib/cn.ts` ``) no longer produce false positives by default ([#2](https://github.com/joaquimscosta/docs-health-action/issues/2))
+
+### Added
+- `check-backtick-paths` action input to opt into backtick path validation (default: `false`)
+- `--check-backtick-paths` CLI flag for `orchestrate.py`
+- Path heuristics to filter git branches, IAM roles, and owner/repo patterns from backtick path checks ([#3](https://github.com/joaquimscosta/docs-health-action/issues/3))
+
 ## [1.0.1] - 2026-04-03
 
 ### Fixed
@@ -37,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Action composite definition (`action.yml`)
 - Sync documentation (`SYNC.md`) mapping action scripts to plugin source
 
-[Unreleased]: https://github.com/joaquimscosta/docs-health-action/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/joaquimscosta/docs-health-action/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/joaquimscosta/docs-health-action/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/joaquimscosta/docs-health-action/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/joaquimscosta/docs-health-action/releases/tag/v1.0.0
