@@ -16,7 +16,7 @@
 - **Cross-doc inconsistencies** -- different documents citing conflicting version numbers for the same tool or language
 - **Missing frontmatter** -- markdown files that would benefit from tracking metadata (`title`, `last_updated`)
 
-Results are posted as a PR comment, uploaded as a JSON artifact, and exposed as action outputs for downstream steps. Works on any repository with markdown files -- no special project structure or dependencies required.
+Results appear as **inline annotations** in the PR diff, uploaded as a JSON artifact, and exposed as action outputs for downstream steps. Optionally, a PR comment summary can be enabled. Works on any repository with markdown files -- no special project structure or dependencies required.
 
 ## Why Automated Doc Health?
 
@@ -35,7 +35,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   check:
@@ -45,7 +44,9 @@ jobs:
       - uses: joaquimscosta/docs-health-action@v1
 ```
 
-That is all you need. The action will run the default checks (links, versions, staleness), post a comment on the PR if issues are found, and fail the workflow if any errors are detected.
+That is all you need. The action will run the default checks (links, versions, staleness), annotate findings inline in the PR diff, and fail the workflow if any errors are detected.
+
+> **Note:** To also post a summary PR comment, add `comment-on-pr: 'true'` and the `pull-requests: write` permission.
 
 ## Configuration
 
@@ -55,8 +56,8 @@ That is all you need. The action will run the default checks (links, versions, s
 |-------|-------------|---------|
 | `checks` | Comma-separated list of checks to run. Available: `links`, `versions`, `staleness`, `claude-md`, `cross-doc`, `frontmatter`, `all`. | `links,versions,staleness` |
 | `fail-on` | When to fail the action. `errors`: fail on broken links and critical mismatches. `warnings`: also fail on staleness and minor mismatches. `none`: never fail (advisory only). | `errors` |
-| `comment-on-pr` | Whether to post a summary comment on the PR. Only applies when triggered by `pull_request` event. | `true` |
-| `comment-threshold` | Minimum severity to include in the PR comment. Options: `error`, `warning`, `info`. | `warning` |
+| `comment-on-pr` | Whether to post a summary comment on the PR. Only applies when triggered by `pull_request` event. Findings always appear as inline annotations regardless of this setting. | `false` |
+| `comment-threshold` | Minimum severity to include in annotations and PR comment. Options: `error`, `warning`, `info`. | `warning` |
 | `doc-patterns` | Comma-separated glob patterns for discovering docs. | `README.md,CLAUDE.md,CONTRIBUTING.md,CHANGELOG.md,INSTALL.md,INSTALLATION.md,SETUP.md,LICENSE.md,docs/**/*.md,wiki/**/*.md,plan/**/*.md,.github/**/*.md` |
 | `exclude-patterns` | Comma-separated glob patterns to exclude from scanning. | `node_modules/**,.git/**,vendor/**,.venv/**,venv/**,dist/**,build/**,target/**,coverage/**` |
 | `config-file` | Path to a config file (e.g., `.arkhe.yaml`) with a `doc-freshness` section. Overrides `doc-patterns` and `exclude-patterns` when present. | _(none)_ |
@@ -159,7 +160,7 @@ Scans markdown files for YAML frontmatter. Files without frontmatter are flagged
 
 ### Basic -- default checks
 
-Runs link checking, version drift detection, and staleness analysis. Fails the workflow on errors. Posts a PR comment on issues.
+Runs link checking, version drift detection, and staleness analysis. Fails the workflow on errors. Findings appear as inline annotations in the PR diff.
 
 ```yaml
 name: Documentation Health
@@ -169,7 +170,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   docs-health:
@@ -244,9 +244,17 @@ jobs:
           echo "Errors: ${{ steps.docs-health.outputs.errors }}"
 ```
 
-## PR Comment
+## Output Formats
 
-When issues are found on a `pull_request` event, the action posts (or updates) a comment on the PR. The comment includes a summary and tables grouped by severity.
+### Inline Annotations (default)
+
+When issues are found, the action emits GitHub workflow commands (`::error`, `::warning`, `::notice`) that appear as inline annotations in the **Files Changed** tab of a pull request, right on the affected line.
+
+GitHub shows up to 10 annotations in the Actions summary panel, but **all** annotations are visible inline in the PR diff.
+
+### PR Comment (opt-in)
+
+Set `comment-on-pr: 'true'` to also post a summary comment on the PR (requires `pull-requests: write` permission). The comment includes tables grouped by severity:
 
 ```
 ## Documentation Health Report

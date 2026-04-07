@@ -48,12 +48,13 @@ inputs:
     description: >
       Whether to post a summary comment on the PR.
       Only applies when triggered by pull_request event.
+      Disabled by default — findings appear as inline annotations instead.
     required: false
-    default: 'true'
+    default: 'false'
 
   comment-threshold:
     description: >
-      Minimum severity to include in PR comment.
+      Minimum severity to include in annotations and PR comment.
       Options: error, warning, info.
     required: false
     default: 'warning'
@@ -152,6 +153,14 @@ runs:
         else
           echo "should-fail=false" >> "$GITHUB_OUTPUT"
         fi
+
+    - name: Annotate findings
+      if: steps.run-checks.outputs.total-issues != '0'
+      shell: bash
+      run: |
+        python3 "${{ github.action_path }}/scripts/format_annotations.py" \
+          --threshold "${{ inputs.comment-threshold }}" \
+          "${{ steps.run-checks.outputs.result-json }}"
 
     - name: Upload results artifact
       uses: actions/upload-artifact@v4

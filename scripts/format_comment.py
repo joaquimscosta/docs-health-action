@@ -22,13 +22,11 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-# Severity ordering (higher = more severe)
-SEVERITY_ORDER: Dict[str, int] = {
-    "critical": 3,
-    "error": 3,      # Treat "error" same as "critical"
-    "warning": 2,
-    "info": 1,
-}
+_SCRIPT_DIR = str(Path(__file__).resolve().parent)
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
+
+from shared import SEVERITY_ORDER, normalize_severity, severity_meets_threshold
 
 # Maximum findings per section before truncation
 MAX_PER_SECTION = 25
@@ -39,26 +37,6 @@ SEVERITY_LABELS = {
     "warning": "Warnings",
     "info": "Info",
 }
-
-
-def normalize_severity(raw: str) -> str:
-    """Normalize severity string to one of: error, warning, info.
-
-    Maps 'critical', 'ERROR', 'broken', 'mismatch' etc. to canonical levels.
-    """
-    lower = raw.lower().strip()
-    if lower in ("critical", "error", "broken", "mismatch"):
-        return "error"
-    if lower in ("warning", "warn", "minor_mismatch", "outdated_frontmatter"):
-        return "warning"
-    return "info"
-
-
-def severity_meets_threshold(severity: str, threshold: str) -> bool:
-    """Check if a severity meets the minimum threshold."""
-    sev_rank = SEVERITY_ORDER.get(severity, 0)
-    thr_rank = SEVERITY_ORDER.get(threshold, 0)
-    return sev_rank >= thr_rank
 
 
 def extract_findings(results: Dict[str, Any]) -> List[Dict[str, Any]]:

@@ -20,6 +20,7 @@ jobs:
           python3 -c "import cross_doc_checker; print('cross_doc_checker OK')"
           python3 -c "import claude_md_checker; print('claude_md_checker OK')"
           python3 -c "import frontmatter_onboard; print('frontmatter_onboard OK')"
+          python3 -c "import format_annotations; print('format_annotations OK')"
       - name: Test simple project (no issues)
         run: |
           python3 scripts/orchestrate.py \
@@ -59,8 +60,9 @@ jobs:
           "
       - name: Test format_comment output
         run: |
-          python3 scripts/orchestrate.py \
-            --checks links \
-            --output /tmp/for-comment.json \
-            tests/fixtures/broken-links
-          python3 scripts/format_comment.py /tmp/for-comment.json | head -20
+          python3 scripts/format_comment.py /tmp/broken.json | head -20
+      - name: Test format_annotations output
+        run: |
+          OUTPUT=$(python3 scripts/format_annotations.py /tmp/broken.json)
+          echo "$OUTPUT"
+          echo "$OUTPUT" | grep -q "^::error " || { echo "FAIL: expected ::error annotations"; exit 1; }

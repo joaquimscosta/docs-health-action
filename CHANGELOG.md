@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Inline annotations in PR diff via GitHub workflow commands (`::error`, `::warning`, `::notice`)
+- New `scripts/format_annotations.py` formatter
+
+### Changed
+- Default for `comment-on-pr` changed from `true` to `false` -- annotations are now the default output
+- Moved severity normalization functions to `shared.py` for reuse across formatters
+
 ## [1.0.2] - 2026-04-05
 
 ### Fixed
