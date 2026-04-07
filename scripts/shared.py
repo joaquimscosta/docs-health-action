@@ -258,7 +258,10 @@ def parse_markdown_links(content: str) -> List[Dict[str, object]]:
                 "type": "inline",
             })
 
-        for match in _IMG_SRC_RE.finditer(line):
+        # Strip inline backtick spans before checking HTML img tags
+        # to avoid matching <img src="..."> inside code spans
+        line_no_backticks = re.sub(r'`[^`]+`', '', line)
+        for match in _IMG_SRC_RE.finditer(line_no_backticks):
             links.append({
                 "text": "(image)",
                 "target": match.group(1),
@@ -381,7 +384,7 @@ def heading_to_slug(text: str) -> str:
     """
     slug = text.lower()
     slug = re.sub(r'[^a-z0-9\s-]', '', slug)
-    slug = re.sub(r'[\s]+', '-', slug)
+    slug = re.sub(r'\s', '-', slug)
     slug = slug.strip('-')
     return slug
 
