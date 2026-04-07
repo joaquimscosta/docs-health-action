@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-04-07
+
 ### Added
 - Inline annotations in PR diff via GitHub workflow commands (`::error`, `::warning`, `::notice`)
 - New `scripts/format_annotations.py` formatter
@@ -56,7 +58,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Action composite definition (`action.yml`)
 - Sync documentation (`SYNC.md`) mapping action scripts to plugin source
 
-[Unreleased]: https://github.com/joaquimscosta/docs-health-action/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/joaquimscosta/docs-health-action/compare/v1.0.3...HEAD
+[1.0.3]: https://github.com/joaquimscosta/docs-health-action/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/joaquimscosta/docs-health-action/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/joaquimscosta/docs-health-action/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/joaquimscosta/docs-health-action/releases/tag/v1.0.0
