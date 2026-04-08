@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-04-08
+
+### Fixed
+- Reference-style links with angle brackets (e.g., `[img]: <data:image/png;base64,...>`) no longer produce false "file does not exist" errors
+- Code fence detection now follows CommonMark spec: closing fences must not have an info string. Fixes false positive broken-anchor errors when markdown contains `` ```lang `` inside an already-open code block
+- Migrated `version_checker` and `cross_doc_checker` to use the same CommonMark-aware fence state machine
+
 ## [1.0.3] - 2026-04-07
 
 ### Added
@@ -58,7 +65,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Action composite definition (`action.yml`)
 - Sync documentation (`SYNC.md`) mapping action scripts to plugin source
 
-[Unreleased]: https://github.com/joaquimscosta/docs-health-action/compare/v1.0.3...HEAD
+[Unreleased]: https://github.com/joaquimscosta/docs-health-action/compare/v1.0.4...HEAD
+[1.0.4]: https://github.com/joaquimscosta/docs-health-action/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/joaquimscosta/docs-health-action/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/joaquimscosta/docs-health-action/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/joaquimscosta/docs-health-action/compare/v1.0.0...v1.0.1
