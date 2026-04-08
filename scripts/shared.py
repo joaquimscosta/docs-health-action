@@ -166,19 +166,60 @@ def read_yaml_section(path: Path, section: str) -> Optional[dict]:
 # Matches fenced code block delimiters (backtick or tilde, 3+ chars)
 _FENCE_RE = re.compile(r'^(`{3,}|~{3,})')
 
+# Matches an opening fence: backticks/tildes with optional info string
+_FENCE_OPEN_RE = re.compile(r'^(`{3,}|~{3,})(.*)$')
+
 
 def _is_fence_line(stripped: str) -> bool:
     """Check if a stripped line is a fenced code block delimiter."""
     return bool(_FENCE_RE.match(stripped))
+
+
+def _update_fence_state(
+    stripped: str, in_code_block: bool, open_fence: str
+) -> tuple:
+    """Track fenced code block state per CommonMark spec.
+
+    Returns (in_code_block, open_fence) tuple.
+
+    Rules:
+    - Opening fence: 3+ backticks/tildes, optionally followed by an info
+      string.  Only recognised when NOT already inside a code block.
+    - Closing fence: 3+ of the SAME character as the opener, with NO info
+      string, and at least as many fence characters as the opener.
+    - A line that looks like a fence but has an info string while inside a
+      code block is treated as plain content (not a fence transition).
+    """
+    m = _FENCE_OPEN_RE.match(stripped)
+    if not m:
+        return in_code_block, open_fence
+
+    fence_chars = m.group(1)   # e.g. "```" or "~~~~"
+    info_string = m.group(2).strip()
+
+    if not in_code_block:
+        # Opening fence — enter code block regardless of info string
+        return True, fence_chars
+    else:
+        # Inside a code block — only close if:
+        # 1. Same fence character type (backtick vs tilde)
+        # 2. At least as many chars as the opener
+        # 3. No info string
+        same_char = fence_chars[0] == open_fence[0]
+        long_enough = len(fence_chars) >= len(open_fence)
+        if same_char and long_enough and not info_string:
+            return False, ""
+        # Otherwise it's just content inside the code block
+        return in_code_block, open_fence
 
 # Matches [text](target) and [text](target "title")
 _INLINE_LINK_RE = re.compile(
     r'\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)'
 )
 
-# Matches [text]: target  (reference-style links)
+# Matches [text]: target  (reference-style links, with optional angle brackets)
 _REF_LINK_RE = re.compile(
-    r'^\[([^\]]+)\]:\s+(\S+)', re.MULTILINE
+    r'^\[([^\]]+)\]:\s+<?(\S+?)>?(?:\s|$)', re.MULTILINE
 )
 
 # Matches <img src="..."> and <img src='...'>
@@ -241,13 +282,15 @@ def parse_markdown_links(content: str) -> List[Dict[str, object]]:
     links: List[Dict[str, object]] = []
     lines = content.splitlines()
     in_code_block = False
+    open_fence = ""
 
     for line_num, line in enumerate(lines, start=1):
         stripped = line.strip()
-        if _is_fence_line(stripped):
-            in_code_block = not in_code_block
-            continue
-        if in_code_block:
+        prev_state = in_code_block
+        in_code_block, open_fence = _update_fence_state(
+            stripped, in_code_block, open_fence
+        )
+        if in_code_block or prev_state != in_code_block:
             continue
 
         for match in _INLINE_LINK_RE.finditer(line):
@@ -290,13 +333,15 @@ def extract_backtick_paths(content: str) -> List[Dict[str, object]]:
     paths: List[Dict[str, object]] = []
     lines = content.splitlines()
     in_code_block = False
+    open_fence = ""
 
     for line_num, line in enumerate(lines, start=1):
         stripped = line.strip()
-        if _is_fence_line(stripped):
-            in_code_block = not in_code_block
-            continue
-        if in_code_block:
+        prev_state = in_code_block
+        in_code_block, open_fence = _update_fence_state(
+            stripped, in_code_block, open_fence
+        )
+        if in_code_block or prev_state != in_code_block:
             continue
 
         for match in _BACKTICK_PATH_RE.finditer(line):
@@ -319,13 +364,15 @@ def extract_headings(content: str) -> List[Dict[str, object]]:
     headings: List[Dict[str, object]] = []
     lines = content.splitlines()
     in_code_block = False
+    open_fence = ""
 
     for line_num, line in enumerate(lines, start=1):
         stripped = line.strip()
-        if _is_fence_line(stripped):
-            in_code_block = not in_code_block
-            continue
-        if in_code_block:
+        prev_state = in_code_block
+        in_code_block, open_fence = _update_fence_state(
+            stripped, in_code_block, open_fence
+        )
+        if in_code_block or prev_state != in_code_block:
             continue
 
         match = re.match(r'^(#{1,6})\s+(.+?)(?:\s*#*\s*)?$', stripped)

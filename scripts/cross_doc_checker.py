@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from shared import _is_fence_line, extract_headings, read_file_safe
+from shared import _update_fence_state, extract_headings, read_file_safe
 
 
 # ---------------------------------------------------------------------------
@@ -111,13 +111,15 @@ def extract_version_claims(content: str) -> List[Dict[str, Any]]:
     claims: List[Dict[str, Any]] = []
     lines = content.splitlines()
     in_code_block = False
+    open_fence = ""
 
     for line_num, line in enumerate(lines, start=1):
         stripped = line.strip()
-        if _is_fence_line(stripped):
-            in_code_block = not in_code_block
-            continue
-        if in_code_block:
+        prev_state = in_code_block
+        in_code_block, open_fence = _update_fence_state(
+            stripped, in_code_block, open_fence
+        )
+        if in_code_block or prev_state != in_code_block:
             continue
 
         for match in _VERSION_CLAIM_RE.finditer(line):
