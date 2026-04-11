@@ -12,76 +12,93 @@ arkhe-claude-plugins/plugins/doc/skills/doc-freshness/scripts/
 
 They were extracted into this standalone GitHub Action to make documentation health checks available to any repository, not just projects that use the Arkhe plugin system.
 
+## Sync Direction
+
+The scripts originated in the plugin, but the action has since diverged with bug fixes and improvements (CommonMark-compliant fence tracking, minimum-version handling, reference-link regex fixes). **The action is now the source of truth** for shared logic. Sync direction is **action → plugin**.
+
 ## File Mapping
 
-### Verbatim copies (identical to source)
+### Shared files (action is source of truth)
 
-These files are unchanged from the plugin. Copy them directly during sync.
+These files are shared between the action and the plugin. Copy them from the action to the plugin during sync.
 
-| Action file | Source file |
-|-------------|------------|
-| `scripts/shared.py` | `plugins/doc/skills/doc-freshness/scripts/shared.py` |
-| `scripts/link_checker.py` | `plugins/doc/skills/doc-freshness/scripts/link_checker.py` |
-| `scripts/version_checker.py` | `plugins/doc/skills/doc-freshness/scripts/version_checker.py` |
+| Action file | Plugin file | Divergence notes |
+|-------------|------------|------------------|
+| `scripts/shared.py` | `.../scripts/shared.py` | Action adds `_update_fence_state()` with CommonMark-compliant fence tracking (replaces naive toggle), fixes reference-link regex for angle brackets, strips inline backtick spans before img-tag matching. |
+| `scripts/link_checker.py` | `.../scripts/link_checker.py` | Trivial (one comment line). |
+| `scripts/version_checker.py` | `.../scripts/version_checker.py` | Action adds `is_minimum` field for `>=`/`+` notation, uses `_update_fence_state`, adds `try/except` guard on version parsing. |
+| `scripts/scan_freshness.py` | `.../scripts/scan_freshness.py` | Currently identical. |
 
-### Generalized from source
+### Generalized from plugin source
 
-These files exist in the plugin but were modified for the action to remove project-specific assumptions.
+These files exist in both repos but have intentional structural differences. The action versions are generalized; the plugin versions have project-specific configuration. Bug fixes and new checks should be manually merged.
 
-| Action file | Source file | Changes |
-|-------------|------------|---------|
-| `scripts/claude_md_checker.py` | `plugins/doc/skills/doc-freshness/scripts/claude_md_checker.py` | Empty `_NAME_OVERRIDES` dict (source has arkhe-specific mappings like `"design intent": "design-intent"`). Added `--name-overrides` CLI arg so any project can supply its own. Plugin-specific checks are gated behind `(project_root / "plugins").is_dir()` so the checker works on projects without a `plugins/` directory. |
-| `scripts/frontmatter_onboard.py` | `plugins/doc/skills/doc-freshness/scripts/frontmatter_onboard.py` | Renamed `CANDIDATE_PATTERNS` to `DEFAULT_CANDIDATE_PATTERNS` with generic defaults (`README.md`, `CONTRIBUTING.md`, `docs/**/*.md`) instead of the arkhe-specific whitelist. Added `patterns` parameter to `_find_candidates()`, `suggest_onboarding()`, and `apply_onboarding()` so patterns are configurable at runtime. Added `--patterns` CLI arg. |
+| Action file | Plugin file | Differences |
+|-------------|------------|-------------|
+| `scripts/claude_md_checker.py` | `.../scripts/claude_md_checker.py` | Action: empty `_NAME_OVERRIDES`, `--name-overrides` CLI arg, `has_plugins` guard. Plugin: arkhe-specific `_NAME_OVERRIDES` dict, no guard. |
+| `scripts/frontmatter_onboard.py` | `.../scripts/frontmatter_onboard.py` | Action: `DEFAULT_CANDIDATE_PATTERNS` (generic), `patterns` parameter on public functions, `--patterns` CLI arg, single `_count_skipped()` call. Plugin: `CANDIDATE_PATTERNS` with arkhe-specific whitelist, double `_count_skipped()` call (efficiency bug). |
 
-### New files (no source equivalent)
-
-These files were written specifically for the GitHub Action.
+### Action-only files (no plugin equivalent)
 
 | Action file | Purpose |
 |-------------|---------|
-| `scripts/orchestrate.py` | Unified CI entry point. Dispatches to individual checker modules, normalizes their outputs into a single JSON schema with severity levels, and writes the report. Replaces the role of `scan_freshness.py` from the plugin (which is not copied). |
-| `scripts/format_comment.py` | Reads the JSON report from `orchestrate.py` and produces markdown suitable for a GitHub PR comment. Handles severity grouping, table rendering, and truncation. |
-| `scripts/cross_doc_checker.py` | Heuristic cross-document consistency checker. Detects version conflicts between documents that cover overlapping topics. Entirely new -- the plugin does not have this check. |
+| `scripts/orchestrate.py` | Unified CI entry point. Dispatches to checker modules, normalizes outputs into a single JSON schema with severity levels, and writes the report. |
+| `scripts/format_comment.py` | Reads JSON report and produces markdown for GitHub PR comments. Handles severity grouping, table rendering, and truncation. |
+| `scripts/format_annotations.py` | Reads JSON report and emits `::error`/`::warning`/`::notice` GitHub workflow commands for inline diff annotations. |
+| `scripts/cross_doc_checker.py` | Heuristic cross-document consistency checker. Detects version conflicts between documents that cover overlapping topics. |
 | `action.yml` | GitHub Action composite definition (inputs, outputs, steps). |
-
-### Verbatim copies (additional)
-
-| Action file | Source file | Notes |
-|-------------|------------|-------|
-| `scripts/scan_freshness.py` | `plugins/doc/skills/doc-freshness/scripts/scan_freshness.py` | Used as a library by `orchestrate.py` for `compute_staleness()` and `load_config()`. Not called directly as the main orchestrator. |
 
 ## How to Sync
 
-Syncing is manual. There is no automated script.
+### Using the sync script (recommended)
 
-1. **Verbatim files**: Copy `shared.py`, `link_checker.py`, and `version_checker.py` directly from the plugin source. No review needed unless the plugin has added new functions that the action's generalized files also need.
+The plugin repo contains a sync script that automates verbatim copies and shows diffs for files that need manual review:
+
+```bash
+cd arkhe-claude-plugins/plugins/doc/skills/doc-freshness/scripts
+./sync-from-action.sh /path/to/docs-health-action
+
+# Or skip confirmation prompts:
+./sync-from-action.sh /path/to/docs-health-action --yes
+```
+
+The script will:
+1. **Verbatim-copy** `shared.py`, `link_checker.py`, `version_checker.py`, and `scan_freshness.py` from the action (with confirmation prompts).
+2. **Show diffs** for `claude_md_checker.py` and `frontmatter_onboard.py` so you can manually merge new logic while preserving plugin-specific configuration.
+
+### Manual sync
+
+If you prefer to sync manually:
+
+1. **Shared files** — copy from action to plugin:
 
    ```bash
-   SRC=plugins/doc/skills/doc-freshness/scripts
-   DST=../docs-health-action/scripts
+   ACTION=path/to/docs-health-action/scripts
+   PLUGIN=plugins/doc/skills/doc-freshness/scripts
 
-   cp $SRC/shared.py $DST/
-   cp $SRC/link_checker.py $DST/
-   cp $SRC/version_checker.py $DST/
-   cp $SRC/scan_freshness.py $DST/
+   cp $ACTION/shared.py          $PLUGIN/
+   cp $ACTION/link_checker.py    $PLUGIN/
+   cp $ACTION/version_checker.py $PLUGIN/
+   cp $ACTION/scan_freshness.py  $PLUGIN/
    ```
 
-2. **Generalized files**: Diff the plugin source against the action version. Apply new logic (bug fixes, new checks) while preserving the generalizations listed above.
+2. **Generalized files** — diff and manually merge:
 
    ```bash
-   diff $SRC/claude_md_checker.py $DST/claude_md_checker.py
-   diff $SRC/frontmatter_onboard.py $DST/frontmatter_onboard.py
+   diff $ACTION/claude_md_checker.py   $PLUGIN/claude_md_checker.py
+   diff $ACTION/frontmatter_onboard.py $PLUGIN/frontmatter_onboard.py
    ```
 
-   Key things to preserve during merge:
-   - `claude_md_checker.py`: Empty `_NAME_OVERRIDES`, `--name-overrides` CLI arg, `has_plugins` guard
-   - `frontmatter_onboard.py`: `DEFAULT_CANDIDATE_PATTERNS` (generic), `patterns` parameter on public functions, `--patterns` CLI arg
+   Preserve in the plugin during merge:
+   - `claude_md_checker.py`: Arkhe-specific `_NAME_OVERRIDES` values
+   - `frontmatter_onboard.py`: Arkhe-specific `CANDIDATE_PATTERNS` whitelist
 
-3. **New files**: `orchestrate.py`, `format_comment.py`, and `cross_doc_checker.py` have no upstream source. Changes to these files are action-only.
+3. **Action-only files**: `orchestrate.py`, `format_comment.py`, `format_annotations.py`, and `cross_doc_checker.py` have no upstream source. Changes to these files are action-only.
 
-4. **Test after sync**: Run the action's test suite to verify nothing broke.
+4. **Test after sync**: Run the action's integration tests to verify nothing broke.
 
    ```bash
    cd docs-health-action
-   python3 -m pytest tests/ -v
+   # Tests are in .github/workflows/test.yml — run orchestrate.py against fixtures:
+   python3 scripts/orchestrate.py --checks links --output /tmp/results.json tests/fixtures/broken-links
    ```

@@ -128,9 +128,11 @@ runs:
           ARGS="$ARGS --check-backtick-paths"
         fi
 
+        set -f  # disable glob expansion — patterns like docs/90-archive/** must pass through literally
         python3 "${{ github.action_path }}/scripts/orchestrate.py" \
           $ARGS \
           "$GITHUB_WORKSPACE"
+        set +f
 
         echo "result-json=${RESULT_FILE}" >> "$GITHUB_OUTPUT"
 
