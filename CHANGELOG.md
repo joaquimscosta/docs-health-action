@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.6] - 2026-06-26
+
+### Fixed
+- Inline links inside code spans (e.g. `` `[label](url)` ``, `` `![alt](src)` ``) are no longer extracted as real links. The `links` check now blanks out CommonMark code spans (including multi-backtick runs like `` ``[x](y)`` ``) before link/image extraction, matching the treatment already applied to HTML `<img>` tags. This eliminates false "Target file does not exist" errors in docs that illustrate markdown syntax. Real links outside code spans on the same line are preserved.
+
 ## [1.0.5] - 2026-04-10
 
 ### Fixed
